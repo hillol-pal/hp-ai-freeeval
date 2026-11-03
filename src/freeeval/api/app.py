@@ -2,7 +2,8 @@ from fastapi import FastAPI
 
 from freeeval.api.apis import routers
 from freeeval.api.apis.endpoints.prompts import router as prompts_router
-from freeeval.api.apis.main import PROMPTS_PREFIX
+
+PROMPTS_PREFIX = "/apis/endpoints/prompts"
 
 
 def create_app() -> FastAPI:
