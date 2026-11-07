@@ -9,6 +9,8 @@ dependencies = [
     "uvicorn>=0.32",
     "pydantic-settings>=2.6",
     "deepeval>=4.3.2,<5",
+    "pytest>=9.1.1",
+    "numpy>=2.4.6",
 ]
 
 [project.optional-dependencies]
