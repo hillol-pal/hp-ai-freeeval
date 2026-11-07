@@ -1,4 +1,7 @@
 from abc import ABC, abstractmethod
+from typing import Any
+import numpy as np
+
 
 
 class RootMetric(ABC):
@@ -17,9 +20,20 @@ class RootMetric(ABC):
         """
         Evaluate the metric and return a score between 0 and 1.
         """
-        pass
+        result: dict[str,Any] = {}
+        return self._apply_threshold(result)
 
     def __repr__(self) -> str: 
         return f"{self.__class__.__name__}(name={self.name}, threshold={self.threshold})"
 
-    
+    def _apply_threshold(self, results: dict[str, Any]) -> dict[str, Any]:
+        """
+        Apply the threshold to the score and return a boolean indicating if the score passes.
+        """
+        if "score" in results:
+            if isinstance(results["score"], float) and np.isnan(results["score"]):
+                results["passed"] = False
+            else:       
+                return results["score"] >= self.threshold
+            
+        return results
