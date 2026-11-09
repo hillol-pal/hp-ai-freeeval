@@ -12,9 +12,10 @@ class APIModel(BaseModel):
 
 
 class Score(APIModel):
-    name: Literal["exact_match"]
-    value: bool
-    passed: bool
+    name: NonEmptyStr
+    value: bool | float | None
+    passed: bool | None
+    reason: str | None = None
 
 
 class CaseResult(APIModel):
@@ -56,6 +57,7 @@ class RagCase(APIModel):
     contexts: list[Context]
     expected_answer: str | None = None
     relevant_context_ids: list[str] | None = None
+    threshold: float = Field(default=0.7, ge=0, le=1)
 
 
 class RagEvaluationRequest(UniqueCases):
