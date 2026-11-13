@@ -1,105 +1,157 @@
-import pytest
+from typing import get_args
+
 from fastapi.testclient import TestClient
 
-from freeeval.evaluation.deepeval import MetricEvaluation
+from freeeval.api.schemas import RagMetricName
+from freeeval.metrics.rag import RAG_METRIC_TYPES
 
 RAG_URL = "/apis/endpoints/rag/evaluations"
 
-
-class _FakeEvaluator:
-    def evaluate_rag_case(
-        self,
-        *,
-        question: str,
-        answer: str,
-        retrieval_context: list[str],
-        threshold: float,
-    ) -> dict[str, MetricEvaluation | None]:
-        faithfulness = None
-        if retrieval_context:
-            faithfulness = MetricEvaluation(score=1.0, reason="grounded")
-        return {
-            "faithfulness": faithfulness,
-            "answer_relevancy": MetricEvaluation(score=1.0, reason="relevant"),
-        }
+PAYLOAD = {
+    "query": "capital of France",
+    "actual_response": "Paris is the capital of France",
+    "retrieved_contexts": ["Paris is the capital of France."],
+    "metrics": [
+        {"name": "faithfulness", "threshold": 0.5},
+        {"name": "answer_relevancy", "threshold": 0.5},
+    ],
+    "metadata": {"source": "docs"},
+}
 
 
-@pytest.fixture(autouse=True)
-def stub_deepeval(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        "freeeval.api.routers.rag.get_deepeval_evaluator",
-        lambda: _FakeEvaluator(),
-    )
-
-
-def _case(**overrides: object) -> dict[str, object]:
-    case: dict[str, object] = {
-        "id": "r1",
-        "question": "Capital of France?",
-        "answer": "Paris",
-        "contexts": [{"id": "c1", "text": "Paris is the capital."}],
-    }
-    case.update(overrides)
-    return case
-
-
-def test_valid_rag_case(client: TestClient) -> None:
-    response = client.post(RAG_URL, json={"cases": [_case()]})
+def test_response_matches_prompt_shape_and_has_a_run_id(client: TestClient) -> None:
+    response = client.post(RAG_URL, json=PAYLOAD)
+    assert response.status_code == 200
     body = response.json()
+    assert set(body) == {"run_id", "metrics"}
+    assert body["run_id"]
+    metrics = body["metrics"]
+    assert [item["name"] for item in metrics] == ["faithfulness", "answer_relevancy"]
+    assert [item["result"] for item in metrics] == ["pass", "pass"]
+    for item in metrics:
+        assert set(item) == {"name", "result", "reasoning"}
+        assert item["reasoning"]
+
+
+def test_metadata_is_accepted_and_not_returned(client: TestClient) -> None:
+    response = client.post(RAG_URL, json={**PAYLOAD, "metadata": {"trace": "abc"}})
     assert response.status_code == 200
-    assert body["use_case"] == "rag"
-    assert body["results"][0]["case_id"] == "r1"
+    assert "metadata" not in response.json()
+    assert "abc" not in response.text
 
 
-def test_context_missing_text_is_rejected(client: TestClient) -> None:
-    response = client.post(
-        RAG_URL,
-        json={"cases": [_case(contexts=[{"id": "c1"}])]},
-    )
-    assert response.status_code == 422
-    assert "run_id" not in response.text
-
-
-def test_identical_answer_passes(client: TestClient) -> None:
-    response = client.post(
-        RAG_URL,
-        json={"cases": [_case(expected_answer="Paris")]},
-    )
-    score = response.json()["results"][0]["scores"][0]
-    assert score["passed"] is True
-    assert score["value"] is True
-
-
-def test_relevant_ids_do_not_change_score(client: TestClient) -> None:
-    response = client.post(
-        RAG_URL,
-        json={"cases": [_case(expected_answer="Paris", relevant_context_ids=["missing"])]},
-    )
-    assert response.json()["results"][0]["scores"][0]["passed"] is True
-
-
-def test_omitted_expected_answer_has_no_exact_match(client: TestClient) -> None:
-    response = client.post(RAG_URL, json={"cases": [_case()]})
+def test_omitted_metadata_is_accepted(client: TestClient) -> None:
+    body = {key: value for key, value in PAYLOAD.items() if key != "metadata"}
+    response = client.post(RAG_URL, json=body)
     assert response.status_code == 200
-    names = [score["name"] for score in response.json()["results"][0]["scores"]]
-    assert names == ["faithfulness", "answer_relevancy"]
+    assert response.json()["metrics"][0]["result"] == "pass"
 
 
-def test_summary_counts_mixed_cases(client: TestClient) -> None:
+def test_each_request_receives_its_own_run_id(client: TestClient) -> None:
+    first = client.post(RAG_URL, json=PAYLOAD).json()["run_id"]
+    second = client.post(RAG_URL, json=PAYLOAD).json()["run_id"]
+    assert first != second
+
+
+def test_each_metric_uses_its_own_threshold(client: TestClient) -> None:
+    body = {
+        "query": "capital of France",
+        "actual_response": "Berlin",
+        "retrieved_contexts": ["Paris is the capital of France."],
+    }
+    low = client.post(
+        RAG_URL,
+        json={**body, "metrics": [{"name": "answer_relevancy", "threshold": 0.0}]},
+    )
+    high = client.post(
+        RAG_URL,
+        json={**body, "metrics": [{"name": "answer_relevancy", "threshold": 0.5}]},
+    )
+    assert low.json()["metrics"][0]["result"] == "pass"
+    assert high.json()["metrics"][0]["result"] == "fail"
+
+
+def test_unsupported_claim_fails_faithfulness(client: TestClient) -> None:
     response = client.post(
         RAG_URL,
         json={
-            "cases": [
-                _case(expected_answer="Paris"),
-                _case(id="r2"),
-            ]
+            **PAYLOAD,
+            "actual_response": "Berlin is the capital",
+            "metrics": [{"name": "faithfulness", "threshold": 0.5}],
         },
     )
+    metric = response.json()["metrics"][0]
+    assert metric["result"] == "fail"
+    assert "supported" in metric["reasoning"]
+
+
+def test_missing_fields_return_an_error_list(client: TestClient) -> None:
+    response = client.post(RAG_URL, json={})
     body = response.json()
-    assert body["summary"] == {
-        "case_count": 2,
-        "scored_count": 2,
-        "passed_count": 2,
+    assert response.status_code == 422
+    assert isinstance(body, list)
+    assert "run_id" not in response.text
+    assert {item["reason_code"] for item in body} == {"MISSING_FIELD"}
+    assert {item["error_code"] for item in body} == {"VALIDATION_ERROR"}
+    assert {item["message"].split(":", 1)[0] for item in body} == {
+        "query",
+        "actual_response",
+        "retrieved_contexts",
+        "metrics",
     }
-    assert body["results"][0]["scores"][0]["name"] == "exact_match"
-    assert "exact_match" not in [score["name"] for score in body["results"][1]["scores"]]
+
+
+def test_unknown_field_is_rejected(client: TestClient) -> None:
+    response = client.post(RAG_URL, json={**PAYLOAD, "note": "nope"})
+    body = response.json()
+    assert response.status_code == 422
+    assert body[0]["reason_code"] == "UNKNOWN_FIELD"
+
+
+def test_unknown_metric_is_rejected(client: TestClient) -> None:
+    response = client.post(
+        RAG_URL,
+        json={**PAYLOAD, "metrics": [{"name": "context_precision", "threshold": 0.5}]},
+    )
+    assert response.status_code == 422
+    assert response.json()[0]["reason_code"] == "UNSUPPORTED_METRIC"
+
+
+def test_duplicate_metrics_are_rejected(client: TestClient) -> None:
+    response = client.post(
+        RAG_URL,
+        json={
+            **PAYLOAD,
+            "metrics": [
+                {"name": "faithfulness", "threshold": 0.2},
+                {"name": "faithfulness", "threshold": 0.8},
+            ],
+        },
+    )
+    assert response.status_code == 422
+    assert response.json()[0]["reason_code"] == "DUPLICATE_METRIC"
+
+
+def test_metadata_must_be_an_object(client: TestClient) -> None:
+    response = client.post(RAG_URL, json={**PAYLOAD, "metadata": ["not", "an", "object"]})
+    assert response.status_code == 422
+    assert response.json()[0]["reason_code"] == "INVALID_TYPE"
+
+
+def test_openapi_documents_rag_request_and_run_response(client: TestClient) -> None:
+    schema = client.get("/openapi.json").json()
+    operation = schema["paths"][RAG_URL]["post"]
+    components = schema["components"]["schemas"]
+    request_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    assert request_ref.endswith("/RagEvaluationRequest")
+    assert response_schema["$ref"].endswith("/RagEvaluationResponse")
+    assert set(components["RagEvaluationRequest"]["properties"]) == {
+        "query",
+        "actual_response",
+        "retrieved_contexts",
+        "metrics",
+        "metadata",
+    }
+    assert set(components["RagEvaluationResponse"]["properties"]) == {"run_id", "metrics"}
+    assert set(get_args(RagMetricName)) == set(RAG_METRIC_TYPES)

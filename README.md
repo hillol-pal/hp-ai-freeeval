@@ -1,8 +1,8 @@
 # FreeEval
 
-FreeEval scores prompt, code, RAG, and agent results that the caller already produced. RAG metrics call the configured judge model. Prompt metrics score the prompt and answer directly. Code and agent routes do not call a model.
+FreeEval scores prompt, code, RAG, and agent results that the caller already produced. Prompt, RAG, and agent routes score the request with the metrics the caller lists. The code route scores an exact match when an expected value is present. None of the routes call a model.
 
-Runs are not stored. Contexts, relevant ids, and steps are accepted but not scored. Code snippets are accepted but not scored.
+Runs are not stored. RAG and agent `metadata` are accepted and are not scored. Code snippets are accepted and are not scored.
 
 ## Install
 
@@ -43,13 +43,13 @@ curl http://127.0.0.1:8000/health
 
 ## Evaluations
 
-Code, RAG, and agent cases are scored with case-sensitive exact match only when an expected value is present. Comparison does not trim whitespace. Prompt evaluation uses the metrics and threshold in the request.
+Code cases are scored with case-sensitive exact match only when an expected value is present. Comparison does not trim whitespace. Prompt, RAG, and agent evaluation use the metrics and thresholds in the request.
 
 ### Prompts
 
 `POST /apis/endpoints/prompts/evaluations`
 
-The body is the input `prompt`, the model `answer`, and a `metrics` list. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response is a JSON list with one object per metric, in request order: `name`, `result` (`pass` or `fail`), and `reasoning`.
+The body is the input `prompt`, the model `answer`, and a `metrics` list. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response is a JSON object with a `run_id` and a `metrics` list. Each metric object has `name`, `result` (`pass` or `fail`), and `reasoning`, in request order.
 
 The route currently accepts `answer_relevancy`, `conciseness`, and `specificity`. The full catalog is under [Metrics](#metrics).
 
@@ -75,20 +75,32 @@ curl -X POST http://127.0.0.1:8000/apis/endpoints/code/evaluations \
 
 `POST /apis/endpoints/rag/evaluations`
 
+The body is the `query`, the `actual_response`, the `retrieved_contexts` list, a `metrics` list, and optional `metadata`. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response has the same shape as prompt evaluation: `run_id` and a `metrics` list of `name`, `result` (`pass` or `fail`), and `reasoning`.
+
+The route currently accepts `faithfulness` and `answer_relevancy`. Those scores use the query, the response, and the retrieved contexts. `metadata` is not scored. The full catalog is under [Metrics](#metrics).
+
+A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422.
+
 ```bash
 curl -X POST http://127.0.0.1:8000/apis/endpoints/rag/evaluations \
   -H 'content-type: application/json' \
-  -d '{"cases":[{"id":"r1","question":"Capital of France?","answer":"Paris","contexts":[{"id":"c1","text":"Paris is the capital."}],"expected_answer":"Paris"}]}'
+  -d '{"query":"Capital of France?","actual_response":"Paris is the capital of France.","retrieved_contexts":["Paris is the capital of France."],"metrics":[{"name":"faithfulness","threshold":0.7}],"metadata":{"source":"docs"}}'
 ```
 
 ### Agents
 
 `POST /apis/endpoints/agents/evaluations`
 
+The body is the task `input`, the `actual_output`, the `execution_trace` list, a `metrics` list, and optional `metadata`. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response has the same shape as prompt and RAG evaluation: `run_id` and a `metrics` list of `name`, `result` (`pass` or `fail`), and `reasoning`.
+
+The route currently accepts `task_success_rate` and `tool_call_accuracy`. One execution succeeds when its output is non-empty and no trace event has an error. Tool accuracy compares each `tool` event's name and `arguments` with that event's `expected_name` and `expected_arguments`. `metadata` is not scored. `task_reliability` stays in the catalog because this request is one execution, not repeated trials. The full catalog is under [Metrics](#metrics).
+
+A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422.
+
 ```bash
 curl -X POST http://127.0.0.1:8000/apis/endpoints/agents/evaluations \
   -H 'content-type: application/json' \
-  -d '{"cases":[{"id":"a1","task":"Find the capital","output":"Paris","steps":[{"kind":"tool","name":"search"}],"expected_output":"Paris"}]}'
+  -d '{"input":"Find the capital of France","actual_output":"Paris","execution_trace":[{"kind":"tool","name":"search","arguments":{"q":"capital of France"},"expected_name":"search","expected_arguments":{"q":"capital of France"}}],"metrics":[{"name":"task_success_rate","threshold":0.5}],"metadata":{"source":"docs"}}'
 ```
 
 ## Metrics

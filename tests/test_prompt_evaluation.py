@@ -17,16 +17,24 @@ PAYLOAD = {
 }
 
 
-def test_response_is_a_list_of_name_result_and_reasoning(client: TestClient) -> None:
+def test_response_has_run_id_and_metric_verdicts(client: TestClient) -> None:
     response = client.post(PROMPT_URL, json=PAYLOAD)
     assert response.status_code == 200
     body = response.json()
-    assert isinstance(body, list)
-    assert [item["name"] for item in body] == ["answer_relevancy", "specificity"]
-    assert [item["result"] for item in body] == ["pass", "pass"]
-    for item in body:
+    assert set(body) == {"run_id", "metrics"}
+    assert body["run_id"]
+    metrics = body["metrics"]
+    assert [item["name"] for item in metrics] == ["answer_relevancy", "specificity"]
+    assert [item["result"] for item in metrics] == ["pass", "pass"]
+    for item in metrics:
         assert set(item) == {"name", "result", "reasoning"}
         assert item["reasoning"]
+
+
+def test_each_request_receives_its_own_run_id(client: TestClient) -> None:
+    first = client.post(PROMPT_URL, json=PAYLOAD).json()["run_id"]
+    second = client.post(PROMPT_URL, json=PAYLOAD).json()["run_id"]
+    assert first != second
 
 
 def test_each_metric_uses_its_own_threshold(client: TestClient) -> None:
@@ -42,8 +50,8 @@ def test_each_metric_uses_its_own_threshold(client: TestClient) -> None:
         PROMPT_URL,
         json={**body, "metrics": [{"name": "conciseness", "threshold": 0.9}]},
     )
-    assert low.json()[0]["result"] == "pass"
-    assert high.json()[0]["result"] == "fail"
+    assert low.json()["metrics"][0]["result"] == "pass"
+    assert high.json()["metrics"][0]["result"] == "fail"
 
 
 def test_score_equal_to_threshold_passes(client: TestClient) -> None:
@@ -55,8 +63,8 @@ def test_score_equal_to_threshold_passes(client: TestClient) -> None:
             "metrics": [{"name": "conciseness", "threshold": 0.5}],
         },
     )
-    assert response.json()[0]["result"] == "pass"
-    assert "2 words" in response.json()[0]["reasoning"]
+    assert response.json()["metrics"][0]["result"] == "pass"
+    assert "2 words" in response.json()["metrics"][0]["reasoning"]
 
 
 def test_missing_fields_return_an_error_list(client: TestClient) -> None:
@@ -143,7 +151,7 @@ def test_threshold_out_of_range_is_rejected(client: TestClient) -> None:
     assert response.json()[0]["reason_code"] == "OUT_OF_RANGE"
 
 
-def test_openapi_documents_metric_list_request_and_list_response(
+def test_openapi_documents_metric_list_request_and_run_response(
     client: TestClient,
 ) -> None:
     schema = client.get("/openapi.json").json()
@@ -152,8 +160,10 @@ def test_openapi_documents_metric_list_request_and_list_response(
     request_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
     response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
     assert request_ref.endswith("/PromptEvaluationRequest")
-    assert response_schema["type"] == "array"
-    assert response_schema["items"]["$ref"].endswith("/PromptMetricResult")
+    assert response_schema["$ref"].endswith("/PromptEvaluationResponse")
+    response_properties = components["PromptEvaluationResponse"]["properties"]
+    assert set(response_properties) == {"run_id", "metrics"}
+    assert response_properties["metrics"]["items"]["$ref"].endswith("/PromptMetricResult")
     request_properties = components["PromptEvaluationRequest"]["properties"]
     assert set(request_properties) == {"prompt", "answer", "metrics"}
     metric_properties = components["PromptMetricSpec"]["properties"]

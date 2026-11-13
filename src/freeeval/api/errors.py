@@ -1,4 +1,4 @@
-"""Error list returned by the prompt evaluation route."""
+"""Error list returned by the prompt, RAG, and agent evaluation routes."""
 
 from fastapi.exceptions import RequestValidationError
 
@@ -15,6 +15,7 @@ _REASON_BY_TYPE = {
     "float_type": "INVALID_TYPE",
     "float_parsing": "INVALID_TYPE",
     "list_type": "INVALID_TYPE",
+    "dict_type": "INVALID_TYPE",
     "int_type": "INVALID_TYPE",
     "json_invalid": "INVALID_JSON",
     "json_type": "INVALID_JSON",

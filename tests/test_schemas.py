@@ -2,15 +2,12 @@ import pytest
 from pydantic import ValidationError
 
 from freeeval.api.schemas import (
-    AgentCase,
     AgentEvaluationRequest,
-    AgentStep,
     CodeCase,
     CodeEvaluationRequest,
-    Context,
     PromptEvaluationRequest,
-    RagCase,
     RagEvaluationRequest,
+    TraceEvent,
 )
 
 
@@ -26,34 +23,29 @@ def test_accepts_one_valid_payload_per_use_case() -> None:
         ]
     )
     rag = RagEvaluationRequest(
-        cases=[
-            RagCase(
-                id="r1",
-                question="Capital of France?",
-                answer="Paris",
-                contexts=[Context(id="c1", text="Paris is the capital.")],
-                expected_answer="Paris",
-                relevant_context_ids=["c1"],
-            )
-        ]
+        query="Capital of France?",
+        actual_response="Paris",
+        retrieved_contexts=["Paris is the capital."],
+        metrics=[{"name": "faithfulness", "threshold": 0.5}],
+        metadata={"source": "unit"},
     )
     agent = AgentEvaluationRequest(
-        cases=[
-            AgentCase(
-                id="a1",
-                task="Find the capital",
-                output="Paris",
-                steps=[AgentStep(kind="tool", name="search")],
-                expected_output="Paris",
-            )
-        ]
+        input="Find the capital",
+        actual_output="Paris",
+        execution_trace=[TraceEvent(kind="tool", name="search")],
+        metrics=[{"name": "task_success_rate", "threshold": 0.5}],
+        metadata={"source": "unit"},
     )
     assert prompt.prompt == "What is 2+2?"
     assert prompt.metrics[0].name == "answer_relevancy"
     assert prompt.metrics[0].threshold == 0.7
     assert code.cases[0].code == "print(2 + 2)"
-    assert rag.cases[0].contexts[0].id == "c1"
-    assert agent.cases[0].steps[0].kind == "tool"
+    assert rag.query == "Capital of France?"
+    assert rag.retrieved_contexts == ["Paris is the capital."]
+    assert rag.metadata == {"source": "unit"}
+    assert agent.input == "Find the capital"
+    assert agent.execution_trace[0].kind == "tool"
+    assert agent.metadata == {"source": "unit"}
 
 
 def test_rejects_unknown_field() -> None:
@@ -79,14 +71,27 @@ def test_rejects_empty_prompt() -> None:
 
 def test_rejects_duplicate_case_id() -> None:
     with pytest.raises(ValidationError):
-        RagEvaluationRequest(
+        CodeEvaluationRequest(
             cases=[
-                RagCase(id="r1", question="q", answer="a", contexts=[]),
-                RagCase(id="r1", question="q", answer="b", contexts=[]),
+                CodeCase(id="c1", code="print(1)", output="1"),
+                CodeCase(id="c1", code="print(2)", output="2"),
             ]
+        )
+
+
+def test_rejects_duplicate_rag_metrics() -> None:
+    with pytest.raises(ValidationError):
+        RagEvaluationRequest(
+            query="q",
+            actual_response="a",
+            retrieved_contexts=[],
+            metrics=[
+                {"name": "faithfulness", "threshold": 0.2},
+                {"name": "faithfulness", "threshold": 0.8},
+            ],
         )
 
 
 def test_rejects_unknown_agent_step_kind() -> None:
     with pytest.raises(ValidationError):
-        AgentStep.model_validate({"kind": "browse", "name": "search"})
+        TraceEvent.model_validate({"kind": "browse", "name": "search"})

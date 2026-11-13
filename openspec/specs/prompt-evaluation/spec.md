@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Scores one caller-supplied prompt and answer with a list of prompt metrics. Each metric carries its own threshold. The response is a list of metric name, pass or fail, and reasoning.
+Scores one caller-supplied prompt and answer with a list of prompt metrics. Each metric carries its own threshold. The response carries a run id and a list of metric name, pass or fail, and reasoning.
 
 ## Requirements
 
@@ -11,14 +11,14 @@ The service MUST accept `POST /apis/endpoints/prompts/evaluations` with a JSON b
 
 #### Scenario: Valid prompt evaluation is accepted
 - **WHEN** a client posts `prompt` `capital of France`, `answer` `Paris is the capital of France`, and metrics `answer_relevancy` at threshold `0.5` and `specificity` at threshold `0.5`
-- **THEN** the response status is 200 and the body is a list with one entry per metric in that order
+- **THEN** the response status is 200 and the body `metrics` list has one entry per metric in that order
 
 ### Requirement: Prompt metric verdict
-The response body MUST be a JSON list. Each item MUST contain `name`, `result`, and `reasoning`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score.
+The response body MUST be a JSON object with `run_id` and `metrics`. `run_id` MUST be a non-empty string. Two successful requests MUST receive different `run_id` values. Each item in `metrics` MUST contain `name`, `result`, and `reasoning`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score. An invalid request MUST NOT return a `run_id`.
 
 #### Scenario: A lower threshold passes and a higher threshold fails
 - **WHEN** conciseness for prompt `hello` and answer `hello there friend extra` is requested once at threshold `0.2` and once at threshold `0.9`
-- **THEN** the first result is `pass` and the second result is `fail`
+- **THEN** the first response metric `result` is `pass` and the second response metric `result` is `fail`
 
 #### Scenario: Score equal to the threshold passes
 - **WHEN** conciseness for prompt `hello` and answer `hello there` is requested at threshold `0.5`

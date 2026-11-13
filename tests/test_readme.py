@@ -29,7 +29,13 @@ def test_readme_documents_code_example() -> None:
 
 def test_readme_documents_rag_example() -> None:
     assert "POST /apis/endpoints/rag/evaluations" in README
-    for field in ('"question"', '"answer"', '"contexts"', '"expected_answer"'):
+    for field in (
+        '"query"',
+        '"actual_response"',
+        '"retrieved_contexts"',
+        '"metrics"',
+        '"metadata"',
+    ):
         assert field in README
 
 
@@ -60,7 +66,13 @@ def test_readme_lists_metrics_by_category() -> None:
 
 def test_readme_documents_agent_example_and_limits() -> None:
     assert "POST /apis/endpoints/agents/evaluations" in README
-    for field in ('"task"', '"output"', '"steps"', '"expected_output"'):
+    for field in (
+        '"input"',
+        '"actual_output"',
+        '"execution_trace"',
+        '"metrics"',
+        '"metadata"',
+    ):
         assert field in README
     assert "Runs are not stored." in README
-    assert "Contexts, relevant ids, and steps are accepted but not scored." in README
+    assert "agent `metadata` are accepted and are not scored." in README

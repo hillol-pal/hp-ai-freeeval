@@ -7,7 +7,11 @@ from freeeval.api.errors import validation_errors
 from freeeval.api.routers import agents, code, prompts, rag
 
 API_PREFIX = "/apis/endpoints"
-PROMPT_EVALUATION_PATH = f"{API_PREFIX}/prompts/evaluations"
+LIST_ERROR_PATHS = {
+    f"{API_PREFIX}/prompts/evaluations",
+    f"{API_PREFIX}/rag/evaluations",
+    f"{API_PREFIX}/agents/evaluations",
+}
 
 
 def create_app() -> FastAPI:
@@ -25,10 +29,10 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.exception_handler(RequestValidationError)
-    async def prompt_validation_handler(
+    async def list_validation_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        if request.url.path.rstrip("/") != PROMPT_EVALUATION_PATH:
+        if request.url.path.rstrip("/") not in LIST_ERROR_PATHS:
             return await request_validation_exception_handler(request, exc)
         body = [item.model_dump() for item in validation_errors(exc)]
         return JSONResponse(status_code=422, content=body)
