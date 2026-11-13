@@ -40,3 +40,10 @@ The repository MUST document `FREEEVAL_HOST`, `FREEEVAL_PORT`, `FREEEVAL_LOG_LEV
 #### Scenario: Documented defaults match an unset environment
 - **WHEN** an operator reads the environment example and the operator documentation
 - **THEN** both name the same four variables and the same defaults the process uses when those variables are unset
+
+### Requirement: Evaluation traces
+The process MUST open one OpenTelemetry span for each prompt, RAG, agent, and code evaluation. That span MUST record the same `run_id` as a successful response. Each metric MUST be a child span. The process MUST export those spans to Arize Phoenix when `PHOENIX_COLLECTOR_ENDPOINT` or `PHOENIX_API_KEY` is set, or when `FREEEVAL_PHOENIX_ENABLED` is true. Export MUST stay off when those variables are unset. A failed export registration MUST leave the evaluation API serving.
+
+#### Scenario: Unset Phoenix variables do not export
+- **WHEN** a client evaluates a prompt and `PHOENIX_COLLECTOR_ENDPOINT`, `PHOENIX_API_KEY`, and `FREEEVAL_PHOENIX_ENABLED` are unset
+- **THEN** the evaluation response is unchanged and the process does not register a Phoenix collector

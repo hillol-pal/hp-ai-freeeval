@@ -10,7 +10,7 @@ Requires Python 3.11 or newer and [uv](https://docs.astral.sh/uv/).
 uv sync --extra dev
 ```
 
-Copy `.env.example` to `.env` to override `FREEEVAL_HOST`, `FREEEVAL_PORT`, `FREEEVAL_LOG_LEVEL`, or `FREEEVAL_ENV`. Do not commit `.env`.
+Copy `.env.example` to `.env` to override `FREEEVAL_HOST`, `FREEEVAL_PORT`, `FREEEVAL_LOG_LEVEL`, or `FREEEVAL_ENV`. Do not commit `.env`. Uncomment the Phoenix lines in that file to export evaluation traces.
 
 ## Run
 

@@ -27,6 +27,14 @@ The process reads these variables. When they are unset, it uses the defaults in 
 
 Copy `.env.example` to `.env` to override them. Do not commit `.env`.
 
+## Tracing
+
+Evaluation calls are OpenTelemetry spans. Set `PHOENIX_COLLECTOR_ENDPOINT` to an [Arize Phoenix](https://arize.com/docs/phoenix) collector and the process registers that collector at startup. `PHOENIX_PROJECT_NAME` defaults to `freeeval`. Set `PHOENIX_API_KEY` when the collector requires one. `FREEEVAL_PHOENIX_ENABLED=true` turns export on even when those variables are unset, which sends spans to `http://localhost:6006`. `FREEEVAL_PHOENIX_ENABLED=false` turns export off.
+
+A local collector is a separate process: `uvx arize-phoenix serve`. This API does not start it.
+
+Each request is one `CHAIN` span named `freeeval.prompt`, `freeeval.rag`, `freeeval.agent`, or `freeeval.code`. The span carries the same `run_id` as a successful response, the request JSON, and the result JSON. Each metric is an `EVALUATOR` child span. OpenAI judge calls nest under that metric span.
+
 ## Run
 
 ```bash

@@ -12,6 +12,7 @@ from freeeval.api.schemas import (
 )
 from freeeval.evaluation.dispatch import score_rag
 from freeeval.evaluation.errors import EvaluationConfigurationError, EvaluationExecutionError
+from freeeval.tracing import evaluation_span
 
 router = APIRouter(prefix="/rag", tags=["rag"])
 
@@ -26,26 +27,36 @@ router = APIRouter(prefix="/rag", tags=["rag"])
     },
 )
 def evaluate_rag(body: RagEvaluationRequest) -> RagEvaluationResponse | JSONResponse:
+    run_id = uuid4().hex
     try:
-        scored = score_rag(
-            body.framework,
-            body.query,
-            body.actual_response,
-            body.retrieved_contexts,
-            body.metrics,
-        )
+        with evaluation_span(
+            "freeeval.rag",
+            run_id=run_id,
+            use_case="rag",
+            framework=body.framework,
+            payload=body.model_dump(),
+        ) as trace:
+            scored = score_rag(
+                body.framework,
+                body.query,
+                body.actual_response,
+                body.retrieved_contexts,
+                body.metrics,
+            )
+            response = RagEvaluationResponse(
+                run_id=run_id,
+                framework=body.framework,
+                metrics=[
+                    RagMetricResult(
+                        name=item.name,
+                        result=item.result,
+                        reasoning=item.reasoning,
+                        implementation=item.implementation,
+                    )
+                    for item in scored
+                ],
+            )
+            trace.set_output(response.model_dump())
+            return response
     except (EvaluationConfigurationError, EvaluationExecutionError) as exc:
         return judge_error_response(exc)
-    return RagEvaluationResponse(
-        run_id=uuid4().hex,
-        framework=body.framework,
-        metrics=[
-            RagMetricResult(
-                name=item.name,
-                result=item.result,
-                reasoning=item.reasoning,
-                implementation=item.implementation,
-            )
-            for item in scored
-        ],
-    )

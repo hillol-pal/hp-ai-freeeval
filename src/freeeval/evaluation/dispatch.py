@@ -10,6 +10,7 @@ from freeeval.evaluation.deepeval import MetricEvaluation
 from freeeval.metrics.agentic import AgentEvaluation, TraceStep, build_agent_metric
 from freeeval.metrics.prompt import PromptEvaluation, build_prompt_metric
 from freeeval.metrics.rag import RagEvaluation, build_rag_metric
+from freeeval.tracing import metric_span
 
 FrameworkName = Literal["freeeval", "deepeval", "ragas"]
 Verdict = Literal["pass", "fail"]
@@ -122,6 +123,25 @@ def score_agent(
 
 
 def _score_metric(
+    framework: str,
+    name: str,
+    threshold: float,
+    supported: dict[str, set[str]],
+    freeeval: Callable[[str, float], tuple[str, str]],
+    judge: Callable[[str, float], MetricEvaluation],
+) -> ScoredMetric:
+    with metric_span(name, framework=framework) as trace:
+        scored = _score_metric_once(framework, name, threshold, supported, freeeval, judge)
+        trace.annotate(
+            threshold=threshold,
+            result=scored.result,
+            implementation=scored.implementation,
+            reasoning=scored.reasoning,
+        )
+        return scored
+
+
+def _score_metric_once(
     framework: str,
     name: str,
     threshold: float,

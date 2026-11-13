@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from freeeval.api.errors import validation_errors
 from freeeval.api.routers import agents, code, prompts, rag
+from freeeval.tracing import configure_phoenix
 
 API_PREFIX = "/apis/endpoints"
 LIST_ERROR_PATHS = {
@@ -15,6 +16,7 @@ LIST_ERROR_PATHS = {
 
 
 def create_app() -> FastAPI:
+    configure_phoenix()
     app = FastAPI(
         title="FreeEval",
         description="FreeEval HTTP API for prompt, code, RAG, and agent evaluation.",
