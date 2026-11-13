@@ -17,3 +17,6 @@ def main() -> None:
         port=settings.port,
         log_config=None,
     )
+
+if __name__ == "__main__":
+    main()

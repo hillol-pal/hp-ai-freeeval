@@ -5,7 +5,7 @@ from fastapi import APIRouter
 from freeeval.api.schemas import AgentEvaluationRequest, CaseResult, RunRecord
 from freeeval.api.scoring import exact_scores, summarize
 
-router = APIRouter(prefix="/apis/endpoints/agents", tags=["agents"])
+router = APIRouter(prefix="/agents", tags=["agents"])
 
 
 @router.post("/evaluations", response_model=RunRecord)

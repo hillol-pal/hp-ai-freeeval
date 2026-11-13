@@ -12,7 +12,7 @@ from freeeval.evaluation.deepeval import (
 from freeeval.evaluation.factory import get_deepeval_evaluator
 from freeeval.logging_config import get_logger
 
-router = APIRouter(prefix="/apis/endpoints/rag", tags=["rag"])
+router = APIRouter(prefix="/rag", tags=["rag"])
 logger = get_logger("freeeval.rag")
 
 

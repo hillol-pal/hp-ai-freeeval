@@ -32,15 +32,15 @@ When a RAG case includes `expected_answer`, the service MUST score that case wit
 - **THEN** that case's `exact_match` score has `passed` true
 
 ### Requirement: Unscored RAG case
-When a RAG case omits `expected_answer`, the service MUST accept the case and return it with an empty `scores` array.
+When a RAG case omits `expected_answer`, the service MUST accept the case and MUST NOT include an `exact_match` score. DeepEval scores for that case are still returned.
 
 #### Scenario: Omitted expected answer
 - **WHEN** a RAG case includes `answer` and `contexts` and omits `expected_answer`
-- **THEN** the response status is 200 and that case's `scores` array is empty
+- **THEN** the response status is 200 and that case's scores are `faithfulness` and `answer_relevancy`
 
 ### Requirement: RAG run record
-A successful RAG evaluation MUST return a non-empty `run_id`, `use_case` `rag`, one result per case with that case's `case_id`, and a `summary`. `summary.case_count` MUST equal the number of cases. `summary.scored_count` MUST equal the number of cases that included `expected_answer`. `summary.passed_count` MUST equal the number of those scores with `passed` true. Two successful requests MUST receive different `run_id` values.
+A successful RAG evaluation MUST return a non-empty `run_id`, `use_case` `rag`, one result per case with that case's `case_id`, and a `summary`. `summary.case_count` MUST equal the number of cases. `summary.scored_count` MUST equal the number of cases that have at least one score with a value. `summary.passed_count` MUST equal the number of scored cases whose every score has `passed` true. Two successful requests MUST receive different `run_id` values.
 
 #### Scenario: Summary counts mixed cases
-- **WHEN** a client posts two RAG cases and only the first includes an `expected_answer` that matches its `answer`
-- **THEN** `summary.case_count` is 2, `summary.scored_count` is 1, and `summary.passed_count` is 1
+- **WHEN** a client posts two RAG cases that both include contexts, and only the first includes an `expected_answer` that matches its `answer`
+- **THEN** `summary.case_count` is 2, `summary.scored_count` is 2, and `summary.passed_count` is 2, and only the first case includes `exact_match`

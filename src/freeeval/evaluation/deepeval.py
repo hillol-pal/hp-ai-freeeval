@@ -19,10 +19,6 @@ class EvaluationExecutionError(RuntimeError):
     """Raised when DeepEval cannot complete a metric measurement."""
 
 
-class UnsupportedMetricError(ValueError):
-    """Raised when a requested metric is not supported by this endpoint."""
-
-
 @dataclass(frozen=True)
 class MetricEvaluation:
     """Normalized result returned by a DeepEval metric."""
@@ -33,12 +29,6 @@ class MetricEvaluation:
 
 class DeepEvalEvaluator:
     """Small adapter around DeepEval's synchronous metric API."""
-
-    PROMPT_METRICS = {
-        "answer_relevancy": "AnswerRelevancyMetric",
-        "toxicity": "ToxicityMetric",
-        "bias": "BiasMetric",
-    }
 
     def __init__(
         self,
@@ -51,29 +41,6 @@ class DeepEvalEvaluator:
         self.api_key = api_key
         # Tests can inject a tiny fake SDK. Production imports DeepEval only on use.
         self._sdk = sdk
-
-    def evaluate_prompt_metric(
-        self,
-        *,
-        prompt: str,
-        response: str,
-        metric_name: str,
-        threshold: float,
-        temperature: float,
-    ) -> MetricEvaluation:
-        metric_class_name = self.PROMPT_METRICS.get(metric_name)
-        if metric_class_name is None:
-            supported = ", ".join(sorted(self.PROMPT_METRICS))
-            raise UnsupportedMetricError(
-                f"Unsupported DeepEval prompt metric '{metric_name}'. Supported metrics: {supported}."
-            )
-
-        sdk = self._load_sdk()
-        model = self._create_model(sdk, temperature=temperature)
-        metric_class = getattr(sdk, metric_class_name)
-        metric = self._create_metric(metric_class, model=model, threshold=threshold)
-        test_case = sdk.LLMTestCase(input=prompt, actual_output=response)
-        return self._measure(metric, test_case)
 
     def evaluate_rag_case(
         self,
@@ -150,9 +117,7 @@ class DeepEvalEvaluator:
         try:
             from deepeval.metrics import (  # type: ignore[import-not-found]
                 AnswerRelevancyMetric,
-                BiasMetric,
                 FaithfulnessMetric,
-                ToxicityMetric,
             )
             from deepeval.models import OpenAIModel  # type: ignore[import-not-found]
             from deepeval.test_case import LLMTestCase  # type: ignore[import-not-found]
@@ -165,9 +130,7 @@ class DeepEvalEvaluator:
             pass
 
         SDK.AnswerRelevancyMetric = AnswerRelevancyMetric
-        SDK.BiasMetric = BiasMetric
         SDK.FaithfulnessMetric = FaithfulnessMetric
-        SDK.ToxicityMetric = ToxicityMetric
         SDK.OpenAIModel = OpenAIModel
         SDK.LLMTestCase = LLMTestCase
         self._sdk = SDK

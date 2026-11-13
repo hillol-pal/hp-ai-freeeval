@@ -1,1 +1,1 @@
-"""FreeEval HTTP API for prompt, RAG, and agent evaluation."""
+"""FreeEval for prompt, RAG, code and agent evaluation."""

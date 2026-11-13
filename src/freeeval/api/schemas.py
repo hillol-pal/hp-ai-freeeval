@@ -3,7 +3,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 NonEmptyStr = Annotated[str, Field(min_length=1)]
-UseCase = Literal["prompt", "rag", "agent"]
+UseCase = Literal["prompt", "code", "rag", "agent"]
 StepKind = Literal["model", "retrieve", "tool", "observe"]
 
 
@@ -43,6 +43,28 @@ class UniqueCases(APIModel):
         if len(ids) != len(set(ids)):
             raise ValueError("case ids must be unique")
         return self
+
+
+class PromptCase(APIModel):
+    id: NonEmptyStr
+    input: dict[str, Any]
+    output: str
+    expected: str | None = None
+
+
+class PromptEvaluationRequest(UniqueCases):
+    cases: list[PromptCase] = Field(min_length=1)
+
+
+class CodeCase(APIModel):
+    id: NonEmptyStr
+    code: str
+    output: str
+    expected: str | None = None
+
+
+class CodeEvaluationRequest(UniqueCases):
+    cases: list[CodeCase] = Field(min_length=1)
 
 
 class Context(APIModel):

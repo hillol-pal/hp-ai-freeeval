@@ -16,8 +16,14 @@ def test_readme_documents_startup() -> None:
 
 
 def test_readme_documents_prompt_example() -> None:
-    assert "POST /apis/endpoints/prompts/" in README
-    for field in ('"prompt"', '"response"', '"metrics"', '"temperature"', '"threshold"'):
+    assert "POST /apis/endpoints/prompts/evaluations" in README
+    for field in ('"id"', '"input"', '"output"', '"expected"'):
+        assert field in README
+
+
+def test_readme_documents_code_example() -> None:
+    assert "POST /apis/endpoints/code/evaluations" in README
+    for field in ('"code"', '"output"', '"expected"'):
         assert field in README
 
 

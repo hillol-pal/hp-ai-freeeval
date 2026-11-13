@@ -1,8 +1,8 @@
 # FreeEval
 
-FreeEval scores prompt, RAG, and agent results that the caller already produced. It does not call a model, retriever, or agent.
+FreeEval scores prompt, code, RAG, and agent results that the caller already produced. It does not call a model, retriever, or agent.
 
-Runs are not stored. Contexts, relevant ids, and steps are accepted but not scored.
+Runs are not stored. Contexts, relevant ids, and steps are accepted but not scored. Code snippets are accepted but not scored.
 
 ## Install
 
@@ -47,14 +47,24 @@ A case is scored with case-sensitive exact match only when an expected value is 
 
 ### Prompts
 
-`POST /apis/endpoints/prompts/`
+`POST /apis/endpoints/prompts/evaluations`
 
-The route on the prompts router is `/`. The prefix is mounted by the API app. Each entry in `metrics` produces one verdict. `provider` is `deepeval` or `ragas`; those runners are reserved and currently return `status` `pending`.
+The `input` object is accepted and not scored.
 
 ```bash
-curl -X POST http://127.0.0.1:8000/apis/endpoints/prompts/ \
+curl -X POST http://127.0.0.1:8000/apis/endpoints/prompts/evaluations \
   -H 'content-type: application/json' \
-  -d '{"prompt":"What is 2+2?","response":"4","metrics":[{"name":"answer_relevancy","provider":"deepeval"}],"temperature":0,"threshold":0.7}'
+  -d '{"cases":[{"id":"p1","input":{"question":"What is 2+2?"},"output":"4","expected":"4"}]}'
+```
+
+### Code
+
+`POST /apis/endpoints/code/evaluations`
+
+```bash
+curl -X POST http://127.0.0.1:8000/apis/endpoints/code/evaluations \
+  -H 'content-type: application/json' \
+  -d '{"cases":[{"id":"c1","code":"print(2 + 2)","output":"4","expected":"4"}]}'
 ```
 
 ### RAG

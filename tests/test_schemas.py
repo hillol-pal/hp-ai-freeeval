@@ -1,24 +1,35 @@
 import pytest
 from pydantic import ValidationError
 
-from freeeval.api.apis.endpoints.prompts import PromptRequest
 from freeeval.api.schemas import (
     AgentCase,
     AgentEvaluationRequest,
     AgentStep,
+    CodeCase,
+    CodeEvaluationRequest,
     Context,
+    PromptCase,
+    PromptEvaluationRequest,
     RagCase,
     RagEvaluationRequest,
 )
 
 
 def test_accepts_one_valid_payload_per_use_case() -> None:
-    prompt = PromptRequest(
-        prompt="What is 2+2?",
-        response="4",
-        metrics=[{"name": "answer_relevancy", "provider": "deepeval"}],
-        temperature=0,
-        threshold=0.5,
+    prompt = PromptEvaluationRequest(
+        cases=[
+            PromptCase(
+                id="p1",
+                input={"question": "What is 2+2?"},
+                output="4",
+                expected="4",
+            )
+        ]
+    )
+    code = CodeEvaluationRequest(
+        cases=[
+            CodeCase(id="c1", code="print(2 + 2)", output="4", expected="4"),
+        ]
     )
     rag = RagEvaluationRequest(
         cases=[
@@ -43,34 +54,31 @@ def test_accepts_one_valid_payload_per_use_case() -> None:
             )
         ]
     )
-    assert prompt.metrics[0].name == "answer_relevancy"
+    assert prompt.cases[0].input["question"] == "What is 2+2?"
+    assert code.cases[0].code == "print(2 + 2)"
     assert rag.cases[0].contexts[0].id == "c1"
     assert agent.cases[0].steps[0].kind == "tool"
 
 
 def test_rejects_unknown_field() -> None:
     with pytest.raises(ValidationError):
-        PromptRequest.model_validate(
+        PromptEvaluationRequest.model_validate(
             {
-                "prompt": "q",
-                "response": "a",
-                "metrics": [{"name": "answer_relevancy", "provider": "deepeval"}],
-                "temperature": 0,
-                "threshold": 0.5,
-                "note": "extra",
+                "cases": [
+                    {
+                        "id": "p1",
+                        "input": {"question": "q"},
+                        "output": "a",
+                        "note": "extra",
+                    }
+                ]
             }
         )
 
 
-def test_rejects_empty_metric_name() -> None:
+def test_rejects_empty_prompt_id() -> None:
     with pytest.raises(ValidationError):
-        PromptRequest(
-            prompt="q",
-            response="a",
-            metrics=[{"name": "", "provider": "deepeval"}],
-            temperature=0,
-            threshold=0.5,
-        )
+        PromptCase(id="", input={}, output="4")
 
 
 def test_rejects_duplicate_case_id() -> None:
