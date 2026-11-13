@@ -56,6 +56,7 @@ def test_unknown_step_kind_is_rejected(client: TestClient) -> None:
     )
     assert response.status_code == 422
     assert "run_id" not in response.text
+    assert "detail" in response.json()
 
 
 def test_identical_output_passes(client: TestClient) -> None:

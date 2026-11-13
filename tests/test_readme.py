@@ -17,7 +17,7 @@ def test_readme_documents_startup() -> None:
 
 def test_readme_documents_prompt_example() -> None:
     assert "POST /apis/endpoints/prompts/evaluations" in README
-    for field in ('"id"', '"input"', '"output"', '"expected"'):
+    for field in ('"prompt"', '"answer"', '"metrics"', '"threshold"'):
         assert field in README
 
 
@@ -31,6 +31,23 @@ def test_readme_documents_rag_example() -> None:
     assert "POST /apis/endpoints/rag/evaluations" in README
     for field in ('"question"', '"answer"', '"contexts"', '"expected_answer"'):
         assert field in README
+
+
+def test_readme_lists_metrics_by_category() -> None:
+    assert "## Metrics" in README
+    for heading in (
+        "### Prompt",
+        "### Code",
+        "### RAG",
+        "### Agents",
+        "### Agentic",
+        "### Ethical",
+        "### Summarisation",
+    ):
+        assert heading in README
+    for name in ("answer_relevancy", "conciseness", "specificity", "code_readability"):
+        assert f"`{name}`" in README
+    assert "None yet." in README
 
 
 def test_readme_documents_agent_example_and_limits() -> None:

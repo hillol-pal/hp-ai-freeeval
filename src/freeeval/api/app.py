@@ -1,8 +1,13 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.responses import JSONResponse
 
+from freeeval.api.errors import validation_errors
 from freeeval.api.routers import agents, code, prompts, rag
 
 API_PREFIX = "/apis/endpoints"
+PROMPT_EVALUATION_PATH = f"{API_PREFIX}/prompts/evaluations"
 
 
 def create_app() -> FastAPI:
@@ -18,6 +23,15 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.exception_handler(RequestValidationError)
+    async def prompt_validation_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        if request.url.path.rstrip("/") != PROMPT_EVALUATION_PATH:
+            return await request_validation_exception_handler(request, exc)
+        body = [item.model_dump() for item in validation_errors(exc)]
+        return JSONResponse(status_code=422, content=body)
 
     app.include_router(prompts.router, prefix=API_PREFIX)
     app.include_router(code.router, prefix=API_PREFIX)

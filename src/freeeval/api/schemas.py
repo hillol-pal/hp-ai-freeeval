@@ -45,15 +45,41 @@ class UniqueCases(APIModel):
         return self
 
 
-class PromptCase(APIModel):
-    id: NonEmptyStr
-    input: dict[str, Any]
-    output: str
-    expected: str | None = None
+PromptMetricName = Literal["answer_relevancy", "conciseness", "specificity"]
+PromptVerdict = Literal["pass", "fail"]
 
 
-class PromptEvaluationRequest(UniqueCases):
-    cases: list[PromptCase] = Field(min_length=1)
+class PromptMetricSpec(APIModel):
+    name: PromptMetricName
+    threshold: float = Field(ge=0, le=1)
+
+
+class PromptEvaluationRequest(APIModel):
+    prompt: NonEmptyStr = Field(description="Input prompt given to the model.")
+    answer: NonEmptyStr = Field(description="Model answer to score against the prompt.")
+    metrics: list[PromptMetricSpec] = Field(
+        min_length=1,
+        description="Metrics to run. Each metric has its own threshold from 0 to 1.",
+    )
+
+    @model_validator(mode="after")
+    def reject_duplicate_metrics(self) -> "PromptEvaluationRequest":
+        names = [metric.name for metric in self.metrics]
+        if len(names) != len(set(names)):
+            raise ValueError("metrics must be unique")
+        return self
+
+
+class PromptMetricResult(APIModel):
+    name: PromptMetricName
+    result: PromptVerdict
+    reasoning: str
+
+
+class APIError(APIModel):
+    error_code: str
+    reason_code: str
+    message: str
 
 
 class CodeCase(APIModel):

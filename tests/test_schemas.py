@@ -8,7 +8,6 @@ from freeeval.api.schemas import (
     CodeCase,
     CodeEvaluationRequest,
     Context,
-    PromptCase,
     PromptEvaluationRequest,
     RagCase,
     RagEvaluationRequest,
@@ -17,14 +16,9 @@ from freeeval.api.schemas import (
 
 def test_accepts_one_valid_payload_per_use_case() -> None:
     prompt = PromptEvaluationRequest(
-        cases=[
-            PromptCase(
-                id="p1",
-                input={"question": "What is 2+2?"},
-                output="4",
-                expected="4",
-            )
-        ]
+        prompt="What is 2+2?",
+        answer="4",
+        metrics=[{"name": "answer_relevancy", "threshold": 0.7}],
     )
     code = CodeEvaluationRequest(
         cases=[
@@ -54,7 +48,9 @@ def test_accepts_one_valid_payload_per_use_case() -> None:
             )
         ]
     )
-    assert prompt.cases[0].input["question"] == "What is 2+2?"
+    assert prompt.prompt == "What is 2+2?"
+    assert prompt.metrics[0].name == "answer_relevancy"
+    assert prompt.metrics[0].threshold == 0.7
     assert code.cases[0].code == "print(2 + 2)"
     assert rag.cases[0].contexts[0].id == "c1"
     assert agent.cases[0].steps[0].kind == "tool"
@@ -64,21 +60,21 @@ def test_rejects_unknown_field() -> None:
     with pytest.raises(ValidationError):
         PromptEvaluationRequest.model_validate(
             {
-                "cases": [
-                    {
-                        "id": "p1",
-                        "input": {"question": "q"},
-                        "output": "a",
-                        "note": "extra",
-                    }
-                ]
+                "prompt": "q",
+                "answer": "a",
+                "metrics": [{"name": "answer_relevancy", "threshold": 0.5}],
+                "note": "extra",
             }
         )
 
 
-def test_rejects_empty_prompt_id() -> None:
+def test_rejects_empty_prompt() -> None:
     with pytest.raises(ValidationError):
-        PromptCase(id="", input={}, output="4")
+        PromptEvaluationRequest(
+            prompt="",
+            answer="4",
+            metrics=[{"name": "answer_relevancy", "threshold": 0.5}],
+        )
 
 
 def test_rejects_duplicate_case_id() -> None:
