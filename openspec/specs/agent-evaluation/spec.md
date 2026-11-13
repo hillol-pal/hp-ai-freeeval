@@ -18,7 +18,7 @@ The service MUST accept `POST /apis/endpoints/agents/evaluations` with a JSON bo
 - **THEN** the response status is 200
 
 ### Requirement: Agent metric verdict
-The response body MUST be a JSON object with `run_id` and `metrics`. `run_id` MUST be a non-empty string. Two successful requests MUST receive different `run_id` values. Each item in `metrics` MUST contain `name`, `result`, and `reasoning`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score. `metadata` MUST NOT be returned and MUST NOT change the score.
+The response body MUST be a JSON object with `run_id`, `framework`, and `metrics`. `run_id` MUST be a non-empty string. Two successful requests MUST receive different `run_id` values. Each item in `metrics` MUST contain `name`, `result`, `reasoning`, and `implementation`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score. `metadata` MUST NOT be returned and MUST NOT change the score.
 
 #### Scenario: A trace error fails task success
 - **WHEN** task success is requested at threshold `0.5` and one trace event has a non-empty `error`
@@ -44,8 +44,15 @@ The service MUST reject an invalid agent evaluation request with HTTP 422. The b
 - **THEN** the response status is 422 and the body contains `reason_code` `UNSUPPORTED_METRIC`
 
 ### Requirement: Agent metric inputs
-`task_success_rate` MUST score the single execution as successful only when `actual_output` is non-empty and no trace event has an error. `tool_call_accuracy` MUST compare each `tool` event's name and `arguments` with that event's `expected_name` and `expected_arguments`. `task_reliability` MUST NOT be accepted by this route.
+The FreeEval implementation of `task_success_rate` MUST score the single execution as successful only when `actual_output` is non-empty and no trace event has an error. The FreeEval implementation of `tool_call_accuracy` MUST compare each `tool` event's name and `arguments` with that event's `expected_name` and `expected_arguments`. `deepeval` MUST score those two metrics with DeepEval task completion and tool correctness. `ragas` MUST score them with Ragas agent goal accuracy and tool-call accuracy. `task_reliability` MUST NOT be accepted by this route.
 
 #### Scenario: Task reliability is not accepted
 - **WHEN** a client posts a metric named `task_reliability`
 - **THEN** the response status is 422
+
+### Requirement: Agent scoring framework
+The request MAY include `framework` `freeeval`, `deepeval`, or `ragas`. The default MUST be `freeeval`. `implementation` MUST name the scorer that ran. A missing judge configuration MUST return HTTP 503 and a list containing `reason_code` `JUDGE_NOT_CONFIGURED`. A judge failure MUST return HTTP 502 and MUST NOT fall back to FreeEval.
+
+#### Scenario: Judge failure is not rescored
+- **WHEN** a client posts `framework` `deepeval` for `task_success_rate` and the judge call fails
+- **THEN** the response status is 502, the body is a list with `reason_code` `JUDGE_FAILED`, and the body does not contain `run_id`

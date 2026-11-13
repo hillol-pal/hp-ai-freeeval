@@ -1,8 +1,10 @@
 """Error list returned by the prompt, RAG, and agent evaluation routes."""
 
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from freeeval.api.schemas import APIError
+from freeeval.evaluation.errors import EvaluationConfigurationError, EvaluationExecutionError
 
 _REASON_BY_TYPE = {
     "missing": "MISSING_FIELD",
@@ -36,6 +38,25 @@ def validation_errors(exc: RequestValidationError) -> list[APIError]:
             )
         )
     return items
+
+
+def judge_error_response(exc: EvaluationConfigurationError | EvaluationExecutionError) -> JSONResponse:
+    """Return the list error body for a judge that is missing or failed."""
+    if isinstance(exc, EvaluationConfigurationError):
+        item = APIError(
+            error_code="EVALUATION_UNAVAILABLE",
+            reason_code="JUDGE_NOT_CONFIGURED",
+            message=str(exc),
+        )
+        status_code = 503
+    else:
+        item = APIError(
+            error_code="EVALUATION_FAILED",
+            reason_code="JUDGE_FAILED",
+            message=str(exc),
+        )
+        status_code = 502
+    return JSONResponse(status_code=status_code, content=[item.model_dump()])
 
 
 def _field(loc: tuple[object, ...] | list[object]) -> str:

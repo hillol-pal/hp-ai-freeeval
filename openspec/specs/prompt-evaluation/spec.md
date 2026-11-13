@@ -14,7 +14,7 @@ The service MUST accept `POST /apis/endpoints/prompts/evaluations` with a JSON b
 - **THEN** the response status is 200 and the body `metrics` list has one entry per metric in that order
 
 ### Requirement: Prompt metric verdict
-The response body MUST be a JSON object with `run_id` and `metrics`. `run_id` MUST be a non-empty string. Two successful requests MUST receive different `run_id` values. Each item in `metrics` MUST contain `name`, `result`, and `reasoning`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score. An invalid request MUST NOT return a `run_id`.
+The response body MUST be a JSON object with `run_id`, `framework`, and `metrics`. `run_id` MUST be a non-empty string. Two successful requests MUST receive different `run_id` values. Each item in `metrics` MUST contain `name`, `result`, `reasoning`, and `implementation`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score. An invalid request MUST NOT return a `run_id`.
 
 #### Scenario: A lower threshold passes and a higher threshold fails
 - **WHEN** conciseness for prompt `hello` and answer `hello there friend extra` is requested once at threshold `0.2` and once at threshold `0.9`
@@ -41,3 +41,10 @@ The service MUST reject an invalid prompt evaluation request with HTTP 422. The 
 #### Scenario: Metric construction rejects a threshold above 1
 - **WHEN** an answer-relevancy metric is constructed with threshold `1.5`
 - **THEN** construction raises an error stating the threshold must be between 0 and 1
+
+### Requirement: Prompt scoring framework
+The request MAY include `framework` `freeeval`, `deepeval`, or `ragas`. The default MUST be `freeeval`. `deepeval` and `ragas` MUST score `answer_relevancy`. `conciseness` and `specificity` MUST be scored by FreeEval for every framework. `implementation` MUST name the scorer that ran. A missing judge configuration MUST return HTTP 503 and a list containing `reason_code` `JUDGE_NOT_CONFIGURED`. A judge failure MUST return HTTP 502 and MUST NOT fall back to FreeEval.
+
+#### Scenario: Unsupported prompt metric stays on FreeEval
+- **WHEN** a client posts `framework` `deepeval` with `answer_relevancy` and `conciseness`
+- **THEN** `answer_relevancy` has `implementation` `deepeval` and `conciseness` has `implementation` `freeeval`

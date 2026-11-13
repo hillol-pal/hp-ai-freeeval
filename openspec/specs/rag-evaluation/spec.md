@@ -14,7 +14,7 @@ The service MUST accept `POST /apis/endpoints/rag/evaluations` with a JSON body 
 - **THEN** the response status is 200 and the body `metrics` list has one entry per metric in that order
 
 ### Requirement: RAG metric verdict
-The response body MUST be a JSON object with `run_id` and `metrics`. `run_id` MUST be a non-empty string. Two successful requests MUST receive different `run_id` values. Each item in `metrics` MUST contain `name`, `result`, and `reasoning`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score. `metadata` MUST NOT be returned and MUST NOT change the score.
+The response body MUST be a JSON object with `run_id`, `framework`, and `metrics`. `run_id` MUST be a non-empty string. Two successful requests MUST receive different `run_id` values. Each item in `metrics` MUST contain `name`, `result`, `reasoning`, and `implementation`. `result` MUST be `pass` when that metric's score is greater than or equal to its own `threshold`, and `fail` otherwise. `reasoning` MUST explain the score. `metadata` MUST NOT be returned and MUST NOT change the score.
 
 #### Scenario: Supported claims pass faithfulness
 - **WHEN** the actual response repeats a claim that appears in a retrieved context and faithfulness is requested at threshold `0.5`
@@ -41,3 +41,10 @@ The service MUST reject an invalid RAG evaluation request with HTTP 422. The bod
 #### Scenario: Context precision is not accepted
 - **WHEN** a client posts a metric named `context_precision`
 - **THEN** the response status is 422
+
+### Requirement: RAG scoring framework
+The request MAY include `framework` `freeeval`, `deepeval`, or `ragas`. The default MUST be `freeeval`. `deepeval` and `ragas` MUST score `faithfulness` and `answer_relevancy`. `implementation` MUST name the scorer that ran. A missing judge configuration MUST return HTTP 503 and a list containing `reason_code` `JUDGE_NOT_CONFIGURED`. A judge failure MUST return HTTP 502 and MUST NOT fall back to FreeEval.
+
+#### Scenario: Selected framework is echoed
+- **WHEN** a client posts `framework` `ragas` with `faithfulness` and `answer_relevancy`
+- **THEN** the response `framework` is `ragas` and both metrics have `implementation` `ragas`

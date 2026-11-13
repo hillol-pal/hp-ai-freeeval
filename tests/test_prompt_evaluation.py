@@ -21,13 +21,15 @@ def test_response_has_run_id_and_metric_verdicts(client: TestClient) -> None:
     response = client.post(PROMPT_URL, json=PAYLOAD)
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"run_id", "metrics"}
+    assert set(body) == {"run_id", "framework", "metrics"}
     assert body["run_id"]
+    assert body["framework"] == "freeeval"
     metrics = body["metrics"]
     assert [item["name"] for item in metrics] == ["answer_relevancy", "specificity"]
     assert [item["result"] for item in metrics] == ["pass", "pass"]
     for item in metrics:
-        assert set(item) == {"name", "result", "reasoning"}
+        assert set(item) == {"name", "result", "reasoning", "implementation"}
+        assert item["implementation"] == "freeeval"
         assert item["reasoning"]
 
 
@@ -162,16 +164,17 @@ def test_openapi_documents_metric_list_request_and_run_response(
     assert request_ref.endswith("/PromptEvaluationRequest")
     assert response_schema["$ref"].endswith("/PromptEvaluationResponse")
     response_properties = components["PromptEvaluationResponse"]["properties"]
-    assert set(response_properties) == {"run_id", "metrics"}
+    assert set(response_properties) == {"run_id", "framework", "metrics"}
     assert response_properties["metrics"]["items"]["$ref"].endswith("/PromptMetricResult")
     request_properties = components["PromptEvaluationRequest"]["properties"]
-    assert set(request_properties) == {"prompt", "answer", "metrics"}
+    assert set(request_properties) == {"prompt", "answer", "metrics", "framework"}
     metric_properties = components["PromptMetricSpec"]["properties"]
     assert set(metric_properties) == {"name", "threshold"}
     assert set(components["PromptMetricResult"]["properties"]) == {
         "name",
         "result",
         "reasoning",
+        "implementation",
     }
     assert set(components["PromptMetricResult"]["properties"]["result"]["enum"]) == {
         "pass",

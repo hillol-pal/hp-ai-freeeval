@@ -23,13 +23,15 @@ def test_response_matches_prompt_shape_and_has_a_run_id(client: TestClient) -> N
     response = client.post(RAG_URL, json=PAYLOAD)
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"run_id", "metrics"}
+    assert set(body) == {"run_id", "framework", "metrics"}
     assert body["run_id"]
+    assert body["framework"] == "freeeval"
     metrics = body["metrics"]
     assert [item["name"] for item in metrics] == ["faithfulness", "answer_relevancy"]
     assert [item["result"] for item in metrics] == ["pass", "pass"]
     for item in metrics:
-        assert set(item) == {"name", "result", "reasoning"}
+        assert set(item) == {"name", "result", "reasoning", "implementation"}
+        assert item["implementation"] == "freeeval"
         assert item["reasoning"]
 
 
@@ -152,6 +154,11 @@ def test_openapi_documents_rag_request_and_run_response(client: TestClient) -> N
         "retrieved_contexts",
         "metrics",
         "metadata",
+        "framework",
     }
-    assert set(components["RagEvaluationResponse"]["properties"]) == {"run_id", "metrics"}
+    assert set(components["RagEvaluationResponse"]["properties"]) == {
+        "run_id",
+        "framework",
+        "metrics",
+    }
     assert set(get_args(RagMetricName)) == set(RAG_METRIC_TYPES)

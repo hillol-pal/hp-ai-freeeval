@@ -47,6 +47,7 @@ class UniqueCases(APIModel):
 
 PromptMetricName = Literal["answer_relevancy", "conciseness", "specificity"]
 PromptVerdict = Literal["pass", "fail"]
+FrameworkName = Literal["freeeval", "deepeval", "ragas"]
 
 
 class PromptMetricSpec(APIModel):
@@ -61,6 +62,10 @@ class PromptEvaluationRequest(APIModel):
         min_length=1,
         description="Metrics to run. Each metric has its own threshold from 0 to 1.",
     )
+    framework: FrameworkName = Field(
+        default="freeeval",
+        description="Scorer for metrics it supports. Other metrics use FreeEval.",
+    )
 
     @model_validator(mode="after")
     def reject_duplicate_metrics(self) -> "PromptEvaluationRequest":
@@ -74,10 +79,12 @@ class PromptMetricResult(APIModel):
     name: PromptMetricName
     result: PromptVerdict
     reasoning: str
+    implementation: FrameworkName
 
 
 class PromptEvaluationResponse(APIModel):
     run_id: NonEmptyStr
+    framework: FrameworkName
     metrics: list[PromptMetricResult]
 
 
@@ -120,6 +127,10 @@ class RagEvaluationRequest(APIModel):
         default_factory=dict,
         description="Caller metadata. It is accepted and is not scored.",
     )
+    framework: FrameworkName = Field(
+        default="freeeval",
+        description="Scorer for metrics it supports. Other metrics use FreeEval.",
+    )
 
     @model_validator(mode="after")
     def reject_duplicate_metrics(self) -> "RagEvaluationRequest":
@@ -133,10 +144,12 @@ class RagMetricResult(APIModel):
     name: RagMetricName
     result: PromptVerdict
     reasoning: str
+    implementation: FrameworkName
 
 
 class RagEvaluationResponse(APIModel):
     run_id: NonEmptyStr
+    framework: FrameworkName
     metrics: list[RagMetricResult]
 
 
@@ -172,6 +185,10 @@ class AgentEvaluationRequest(APIModel):
         default_factory=dict,
         description="Caller metadata. It is accepted and is not scored.",
     )
+    framework: FrameworkName = Field(
+        default="freeeval",
+        description="Scorer for metrics it supports. Other metrics use FreeEval.",
+    )
 
     @model_validator(mode="after")
     def reject_duplicate_metrics(self) -> "AgentEvaluationRequest":
@@ -185,8 +202,10 @@ class AgentMetricResult(APIModel):
     name: AgentMetricName
     result: PromptVerdict
     reasoning: str
+    implementation: FrameworkName
 
 
 class AgentEvaluationResponse(APIModel):
     run_id: NonEmptyStr
+    framework: FrameworkName
     metrics: list[AgentMetricResult]

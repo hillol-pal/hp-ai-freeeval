@@ -1,8 +1,10 @@
 # FreeEval
 
-FreeEval scores prompt, code, RAG, and agent results that the caller already produced. Prompt, RAG, and agent routes score the request with the metrics the caller lists. The code route scores an exact match when an expected value is present. None of the routes call a model.
+FreeEval scores prompt, code, RAG, and agent results that the caller already produced. Prompt, RAG, and agent routes score the request with the metrics the caller lists. The code route scores an exact match when an expected value is present.
 
-Runs are not stored. RAG and agent `metadata` are accepted and are not scored. Code snippets are accepted and are not scored.
+The default `framework` is `freeeval`, which does not call a model. `deepeval` and `ragas` call the configured OpenAI judge for metrics they support. Any other metric in that request is scored by FreeEval. Each result includes `implementation` (`freeeval`, `deepeval`, or `ragas`).
+
+Runs are not stored. RAG `metadata` and agent `metadata` are accepted and are not scored. Code snippets are accepted and are not scored.
 
 ## Install
 
@@ -49,11 +51,11 @@ Code cases are scored with case-sensitive exact match only when an expected valu
 
 `POST /apis/endpoints/prompts/evaluations`
 
-The body is the input `prompt`, the model `answer`, and a `metrics` list. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response is a JSON object with a `run_id` and a `metrics` list. Each metric object has `name`, `result` (`pass` or `fail`), and `reasoning`, in request order.
+The body is the input `prompt`, the model `answer`, a `metrics` list, and an optional `framework` (`freeeval`, `deepeval`, or `ragas`). Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response is a JSON object with `run_id`, `framework`, and a `metrics` list. Each metric object has `name`, `result` (`pass` or `fail`), `reasoning`, and `implementation`, in request order.
 
 The route currently accepts `answer_relevancy`, `conciseness`, and `specificity`. The full catalog is under [Metrics](#metrics).
 
-A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422.
+A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422. A missing judge configuration uses HTTP 503. A judge failure uses HTTP 502. Those responses have no `run_id`.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/apis/endpoints/prompts/evaluations \
@@ -75,11 +77,11 @@ curl -X POST http://127.0.0.1:8000/apis/endpoints/code/evaluations \
 
 `POST /apis/endpoints/rag/evaluations`
 
-The body is the `query`, the `actual_response`, the `retrieved_contexts` list, a `metrics` list, and optional `metadata`. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response has the same shape as prompt evaluation: `run_id` and a `metrics` list of `name`, `result` (`pass` or `fail`), and `reasoning`.
+The body is the `query`, the `actual_response`, the `retrieved_contexts` list, a `metrics` list, optional `metadata`, and an optional `framework`. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response has the same shape as prompt evaluation: `run_id`, `framework`, and a `metrics` list of `name`, `result` (`pass` or `fail`), `reasoning`, and `implementation`.
 
 The route currently accepts `faithfulness` and `answer_relevancy`. Those scores use the query, the response, and the retrieved contexts. `metadata` is not scored. The full catalog is under [Metrics](#metrics).
 
-A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422.
+A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422. A missing judge configuration uses HTTP 503. A judge failure uses HTTP 502. Those responses have no `run_id`.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/apis/endpoints/rag/evaluations \
@@ -91,11 +93,11 @@ curl -X POST http://127.0.0.1:8000/apis/endpoints/rag/evaluations \
 
 `POST /apis/endpoints/agents/evaluations`
 
-The body is the task `input`, the `actual_output`, the `execution_trace` list, a `metrics` list, and optional `metadata`. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response has the same shape as prompt and RAG evaluation: `run_id` and a `metrics` list of `name`, `result` (`pass` or `fail`), and `reasoning`.
+The body is the task `input`, the `actual_output`, the `execution_trace` list, a `metrics` list, optional `metadata`, and an optional `framework`. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response has the same shape as prompt and RAG evaluation: `run_id`, `framework`, and a `metrics` list of `name`, `result` (`pass` or `fail`), `reasoning`, and `implementation`.
 
 The route currently accepts `task_success_rate` and `tool_call_accuracy`. One execution succeeds when its output is non-empty and no trace event has an error. Tool accuracy compares each `tool` event's name and `arguments` with that event's `expected_name` and `expected_arguments`. `metadata` is not scored. `task_reliability` stays in the catalog because this request is one execution, not repeated trials. The full catalog is under [Metrics](#metrics).
 
-A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422.
+A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422. A missing judge configuration uses HTTP 503. A judge failure uses HTTP 502. Those responses have no `run_id`.
 
 ```bash
 curl -X POST http://127.0.0.1:8000/apis/endpoints/agents/evaluations \
@@ -127,4 +129,8 @@ Add a row to this table when another metric becomes supported. A higher score is
 | AI Agents | 1 | `task_success_rate` | Percentage of agent tasks successfully completed |
 | AI Agents | 2 | `tool_call_accuracy` | Correctness of tool selection and input arguments |
 | AI Agents | 3 | `task_reliability` | Consistency of successful outcomes across repeated executions |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). The `data_generation` package builds fixed prompt, code, RAG, and agent requests for tests and manual checks.
 

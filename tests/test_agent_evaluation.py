@@ -31,13 +31,15 @@ def test_response_matches_the_other_routes_and_has_a_run_id(client: TestClient) 
     response = client.post(AGENT_URL, json=PAYLOAD)
     assert response.status_code == 200
     body = response.json()
-    assert set(body) == {"run_id", "metrics"}
+    assert set(body) == {"run_id", "framework", "metrics"}
     assert body["run_id"]
+    assert body["framework"] == "freeeval"
     metrics = body["metrics"]
     assert [item["name"] for item in metrics] == ["task_success_rate", "tool_call_accuracy"]
     assert [item["result"] for item in metrics] == ["pass", "pass"]
     for item in metrics:
-        assert set(item) == {"name", "result", "reasoning"}
+        assert set(item) == {"name", "result", "reasoning", "implementation"}
+        assert item["implementation"] == "freeeval"
         assert item["reasoning"]
 
 
@@ -171,6 +173,11 @@ def test_openapi_documents_agent_request_and_run_response(client: TestClient) ->
         "execution_trace",
         "metrics",
         "metadata",
+        "framework",
     }
-    assert set(components["AgentEvaluationResponse"]["properties"]) == {"run_id", "metrics"}
+    assert set(components["AgentEvaluationResponse"]["properties"]) == {
+        "run_id",
+        "framework",
+        "metrics",
+    }
     assert set(get_args(AgentMetricName)) == set(AGENT_METRIC_TYPES)
