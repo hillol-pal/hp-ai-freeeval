@@ -51,7 +51,7 @@ Code, RAG, and agent cases are scored with case-sensitive exact match only when 
 
 The body is the input `prompt`, the model `answer`, and a `metrics` list. Each metric has a `name` and its own `threshold` from 0 to 1. A metric passes when its score is greater than or equal to that threshold. The response is a JSON list with one object per metric, in request order: `name`, `result` (`pass` or `fail`), and `reasoning`.
 
-Metric names are listed under [Metrics](#metrics).
+The route currently accepts `answer_relevancy`, `conciseness`, and `specificity`. The full catalog is under [Metrics](#metrics).
 
 A failed request returns a JSON list. Each item has `error_code`, `reason_code`, and `message`. Validation problems use HTTP 422.
 
@@ -93,38 +93,26 @@ curl -X POST http://127.0.0.1:8000/apis/endpoints/agents/evaluations \
 
 ## Metrics
 
-Add a metric to the list for its category when that metric becomes supported.
+Add a row to this table when another metric becomes supported. A higher score is better. For hallucination rate, the score is the desirable form of that measurement and the metric's reasoning states the raw rate.
 
-### Prompt
-
-- `answer_relevancy` — share of prompt content words that also appear in the answer.
-- `conciseness` — 1 when the answer is no longer than the prompt, otherwise the length ratio.
-- `specificity` — share of answer words that are content words rather than stopwords.
-
-### Code
-
-- `exact_match` — scored on `POST /apis/endpoints/code/evaluations` when `expected` is present.
-- `code_readability` — class in `src/freeeval/metrics/code/code_readability.py`. The code evaluation route does not select it yet.
-
-### RAG
-
-- `exact_match` — scored when `expected_answer` is present.
-- `faithfulness` — DeepEval score of the answer against the retrieved contexts.
-- `answer_relevancy` — DeepEval score of the answer against the question.
-
-### Agents
-
-- `exact_match` — scored on `POST /apis/endpoints/agents/evaluations` when `expected_output` is present.
-
-### Agentic
-
-None yet.
-
-### Ethical
-
-None yet.
-
-### Summarisation
-
-None yet.
+| Category | Priority | Evaluation Metric | What It Measures |
+| --- | --- | --- | --- |
+| Code Generation | 1 | `maintainability` | Nesting, length, and branches of each function |
+| Code Generation | 2 | `readability` | Line length, indentation, and conventional names |
+| Code Generation | 3 | `robustness` | Share of functions that raise or catch an exception |
+| Code Generation | 4 | `secured_code` | Absence of eval, exec, shell execution, deserialization, and hardcoded secrets |
+| Code Generation | 5 | `extensibility` | Named units, focused function size, and parameters |
+| Prompt / LLM | 1 | `answer_correctness` | Factual accuracy of generated responses against ground truth |
+| Prompt / LLM | 2 | `instruction_following_rate` | Whether responses comply with prompt instructions and constraints |
+| Prompt / LLM | 3 | `answer_relevancy` | How well responses address the user's question |
+| Prompt / LLM | 4 | `format_compliance_rate` | Whether output complies with required schemas or formats |
+| Prompt / LLM | 5 | `hallucination_rate` | Frequency of fabricated or unsupported factual claims |
+| RAG | 1 | `faithfulness` | Whether generated claims are supported by retrieved context |
+| RAG | 2 | `context_precision` | Relevance and ranking quality of retrieved documents |
+| RAG | 3 | `context_recall` | Whether retrieval captures the information needed for the answer |
+| RAG | 4 | `answer_relevancy` | How closely the generated answer addresses the question |
+| RAG | 5 | `answer_correctness` | Factual accuracy of the final answer against ground truth |
+| AI Agents | 1 | `task_success_rate` | Percentage of agent tasks successfully completed |
+| AI Agents | 2 | `tool_call_accuracy` | Correctness of tool selection and input arguments |
+| AI Agents | 3 | `task_reliability` | Consistency of successful outcomes across repeated executions |
 

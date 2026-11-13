@@ -35,19 +35,27 @@ def test_readme_documents_rag_example() -> None:
 
 def test_readme_lists_metrics_by_category() -> None:
     assert "## Metrics" in README
-    for heading in (
-        "### Prompt",
-        "### Code",
-        "### RAG",
-        "### Agents",
-        "### Agentic",
-        "### Ethical",
-        "### Summarisation",
+    for category in ("Code Generation", "Prompt / LLM", "RAG", "AI Agents"):
+        assert category in README
+    for name in (
+        "maintainability",
+        "readability",
+        "robustness",
+        "secured_code",
+        "extensibility",
+        "answer_correctness",
+        "instruction_following_rate",
+        "answer_relevancy",
+        "format_compliance_rate",
+        "hallucination_rate",
+        "faithfulness",
+        "context_precision",
+        "context_recall",
+        "task_success_rate",
+        "tool_call_accuracy",
+        "task_reliability",
     ):
-        assert heading in README
-    for name in ("answer_relevancy", "conciseness", "specificity", "code_readability"):
         assert f"`{name}`" in README
-    assert "None yet." in README
 
 
 def test_readme_documents_agent_example_and_limits() -> None:
