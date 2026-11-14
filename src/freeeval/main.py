@@ -9,6 +9,7 @@ logger = get_logger("freeeval")
 
 def main() -> None:
     settings = Settings()
+    settings.export_phoenix_environment()
     setup_logging(level=settings.log_level)
     logger.info("environment=%s", settings.environment)
     uvicorn.run(

@@ -174,7 +174,8 @@ def _score_metric_once(
 def _prompt_judge(framework: str, name: str, threshold: float, prompt: str, answer: str) -> MetricEvaluation:
     if framework == "deepeval":
         return _deepeval().score_answer_relevancy(question=prompt, answer=answer, threshold=threshold)
-    return _ragas().score_answer_relevancy(question=prompt, answer=answer, threshold=threshold)
+    elif framework == "ragas":
+        return _ragas().score_answer_relevancy(question=prompt, answer=answer, threshold=threshold)
 
 
 def _rag_judge(

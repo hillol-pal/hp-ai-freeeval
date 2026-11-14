@@ -29,11 +29,28 @@ Copy `.env.example` to `.env` to override them. Do not commit `.env`.
 
 ## Tracing
 
-Evaluation calls are OpenTelemetry spans. Set `PHOENIX_COLLECTOR_ENDPOINT` to an [Arize Phoenix](https://arize.com/docs/phoenix) collector and the process registers that collector at startup. `PHOENIX_PROJECT_NAME` defaults to `freeeval`. Set `PHOENIX_API_KEY` when the collector requires one. `FREEEVAL_PHOENIX_ENABLED=true` turns export on even when those variables are unset, which sends spans to `http://localhost:6006`. `FREEEVAL_PHOENIX_ENABLED=false` turns export off.
+Evaluation calls are OpenTelemetry spans. [Arize Phoenix](https://arize.com/docs/phoenix) is a separate process. This API does not start it.
 
-A local collector is a separate process: `uvx arize-phoenix serve`. This API does not start it.
+Start the collector and leave it running:
 
-Each request is one `CHAIN` span named `freeeval.prompt`, `freeeval.rag`, `freeeval.agent`, or `freeeval.code`. The span carries the same `run_id` as a successful response, the request JSON, and the result JSON. Each metric is an `EVALUATOR` child span. OpenAI judge calls nest under that metric span.
+```bash
+uvx arize-phoenix serve
+```
+
+The UI is at <http://localhost:6006>. That process also accepts traces on gRPC port `4317` and at <http://localhost:6006/v1/traces>.
+
+Export stays off until `FREEEVAL_PHOENIX_ENABLED=true`, `PHOENIX_COLLECTOR_ENDPOINT`, or `PHOENIX_API_KEY` is set. On startup, `python -m freeeval` copies those values from `.env` into the process environment when the variable is absent. A value already in the environment wins. Restart the API after changing them. A successful registration logs `Exporting evaluation traces to Phoenix project <name>`.
+
+| Variable | Effect |
+| --- | --- |
+| `FREEEVAL_PHOENIX_ENABLED` | `true` exports when the endpoint and API key are unset, to `http://localhost:6006`. `false` turns export off. |
+| `PHOENIX_COLLECTOR_ENDPOINT` | Collector URL. A bare origin such as `http://localhost:6006` is sent over gRPC port `4317`. `http://localhost:6006/v1/traces` is sent over HTTP. |
+| `PHOENIX_PROJECT_NAME` | Project shown in the UI. Default `freeeval`. |
+| `PHOENIX_API_KEY` | Bearer key when the collector requires one. Setting it also turns export on. |
+
+Each request is one trace. The root span is a `CHAIN` named `freeeval.prompt`, `freeeval.rag`, `freeeval.agent`, or `freeeval.code`. It records `freeeval.run_id` (the same id a successful response returns), `freeeval.use_case`, `freeeval.framework`, the request JSON on `input.value`, and the result JSON on `output.value`. Each metric is an `EVALUATOR` child named `freeeval.metric.<name>` with `freeeval.metric.threshold`, `freeeval.metric.result`, `freeeval.metric.implementation`, and `freeeval.metric.reasoning`. Code spans also record `freeeval.metric.case_id`. OpenAI judge calls nest under that metric span. A judge failure marks the spans `ERROR`. That HTTP body has no `run_id`; the span still has `freeeval.run_id`.
+
+In the `freeeval` project, open a run with `attributes['freeeval.run_id'] == '<run_id>'`.
 
 ## Run
 
