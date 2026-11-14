@@ -1,3 +1,5 @@
+import os
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -19,3 +21,34 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = Field(
         default=None, validation_alias="OPENAI_API_KEY"
     )
+    phoenix_collector_endpoint: str | None = Field(
+        default=None, validation_alias="PHOENIX_COLLECTOR_ENDPOINT"
+    )
+    phoenix_project_name: str | None = Field(
+        default=None, validation_alias="PHOENIX_PROJECT_NAME"
+    )
+    phoenix_api_key: SecretStr | None = Field(
+        default=None, validation_alias="PHOENIX_API_KEY"
+    )
+    phoenix_enabled: str | None = Field(
+        default=None, validation_alias="FREEEVAL_PHOENIX_ENABLED"
+    )
+
+    def export_phoenix_environment(self) -> None:
+        """Copy Phoenix settings into the process environment when unset.
+
+        configure_phoenix() reads os.environ. A value already in the process
+        stays in place. Settings has already applied .env for the rest.
+        """
+        values: dict[str, str | None] = {
+            "PHOENIX_COLLECTOR_ENDPOINT": self.phoenix_collector_endpoint,
+            "PHOENIX_PROJECT_NAME": self.phoenix_project_name,
+            "FREEEVAL_PHOENIX_ENABLED": self.phoenix_enabled,
+            "PHOENIX_API_KEY": (
+                None if self.phoenix_api_key is None else self.phoenix_api_key.get_secret_value()
+            ),
+        }
+        for key, value in values.items():
+            if value is None or key in os.environ:
+                continue
+            os.environ[key] = value

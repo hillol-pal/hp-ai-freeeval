@@ -5,7 +5,6 @@ from freeeval.evaluation.deepeval import (
     EvaluationConfigurationError,
     EvaluationExecutionError,
     MetricEvaluation,
-    UnsupportedMetricError,
 )
 
 __all__ = [
@@ -13,5 +12,4 @@ __all__ = [
     "EvaluationConfigurationError",
     "EvaluationExecutionError",
     "MetricEvaluation",
-    "UnsupportedMetricError",
 ]
