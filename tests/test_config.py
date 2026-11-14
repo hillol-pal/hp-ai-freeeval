@@ -57,6 +57,8 @@ def test_env_example_lists_defaults() -> None:
         key, value = stripped.split("=", 1)
         values[key] = value
     assert values == {
+        "OPENAI_API_KEY": "<YOUR_OPENAI_API_KEY>",
+        "FREEEVAL_DEEPEVAL_MODEL": "gpt-4o-mini",
         "FREEEVAL_HOST": "127.0.0.1",
         "FREEEVAL_PORT": "8000",
         "FREEEVAL_LOG_LEVEL": "info",

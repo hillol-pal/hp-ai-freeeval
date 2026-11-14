@@ -1,106 +1,183 @@
+from typing import get_args
+
 from fastapi.testclient import TestClient
+
+from freeeval.api.schemas import AgentMetricName
+from freeeval.metrics.agentic import AGENT_METRIC_TYPES
 
 AGENT_URL = "/apis/endpoints/agents/evaluations"
 
+PAYLOAD = {
+    "input": "Find the capital of France",
+    "actual_output": "Paris",
+    "execution_trace": [
+        {
+            "kind": "tool",
+            "name": "search",
+            "arguments": {"q": "capital of France"},
+            "expected_name": "search",
+            "expected_arguments": {"q": "capital of France"},
+        }
+    ],
+    "metrics": [
+        {"name": "task_success_rate", "threshold": 0.5},
+        {"name": "tool_call_accuracy", "threshold": 0.5},
+    ],
+    "metadata": {"source": "docs"},
+}
 
-def _case(**overrides: object) -> dict[str, object]:
-    case: dict[str, object] = {
-        "id": "a1",
-        "task": "Find the capital",
-        "output": "done",
-        "steps": [{"kind": "tool", "name": "search"}],
-    }
-    case.update(overrides)
-    return case
 
-
-def test_valid_agent_case_with_tool_step(client: TestClient) -> None:
-    response = client.post(AGENT_URL, json={"cases": [_case()]})
+def test_response_matches_the_other_routes_and_has_a_run_id(client: TestClient) -> None:
+    response = client.post(AGENT_URL, json=PAYLOAD)
+    assert response.status_code == 200
     body = response.json()
-    assert response.status_code == 200
-    assert body["use_case"] == "agent"
-    assert body["results"][0]["case_id"] == "a1"
+    assert set(body) == {"run_id", "framework", "metrics"}
+    assert body["run_id"]
+    assert body["framework"] == "freeeval"
+    metrics = body["metrics"]
+    assert [item["name"] for item in metrics] == ["task_success_rate", "tool_call_accuracy"]
+    assert [item["result"] for item in metrics] == ["pass", "pass"]
+    for item in metrics:
+        assert set(item) == {"name", "result", "reasoning", "implementation"}
+        assert item["implementation"] == "freeeval"
+        assert item["reasoning"]
 
 
-def test_empty_steps_are_accepted(client: TestClient) -> None:
-    response = client.post(AGENT_URL, json={"cases": [_case(steps=[])]})
-    assert response.status_code == 200
-
-
-def test_optional_step_fields_are_accepted(client: TestClient) -> None:
+def test_empty_trace_can_still_succeed(client: TestClient) -> None:
     response = client.post(
         AGENT_URL,
         json={
-            "cases": [
-                _case(
-                    steps=[
-                        {
-                            "kind": "tool",
-                            "name": "search",
-                            "input": {"q": "capital"},
-                            "output": {"text": "Paris"},
-                            "error": "",
-                        }
-                    ]
-                )
-            ]
+            **PAYLOAD,
+            "execution_trace": [],
+            "metrics": [{"name": "task_success_rate", "threshold": 0.5}],
         },
     )
     assert response.status_code == 200
+    assert response.json()["metrics"][0]["result"] == "pass"
 
 
-def test_unknown_step_kind_is_rejected(client: TestClient) -> None:
+def test_trace_error_fails_task_success(client: TestClient) -> None:
     response = client.post(
         AGENT_URL,
-        json={"cases": [_case(steps=[{"kind": "browse", "name": "search"}])]},
+        json={
+            **PAYLOAD,
+            "execution_trace": [
+                {"kind": "tool", "name": "search", "error": "timeout"},
+            ],
+            "metrics": [{"name": "task_success_rate", "threshold": 0.5}],
+        },
+    )
+    metric = response.json()["metrics"][0]
+    assert metric["result"] == "fail"
+    assert "trace error" in metric["reasoning"]
+
+
+def test_wrong_tool_fails_accuracy(client: TestClient) -> None:
+    response = client.post(
+        AGENT_URL,
+        json={
+            **PAYLOAD,
+            "execution_trace": [
+                {
+                    "kind": "tool",
+                    "name": "browse",
+                    "arguments": {},
+                    "expected_name": "search",
+                    "expected_arguments": {},
+                }
+            ],
+            "metrics": [{"name": "tool_call_accuracy", "threshold": 0.5}],
+        },
+    )
+    metric = response.json()["metrics"][0]
+    assert metric["result"] == "fail"
+    assert "tool calls" in metric["reasoning"]
+
+
+def test_metadata_is_accepted_and_not_returned(client: TestClient) -> None:
+    response = client.post(AGENT_URL, json={**PAYLOAD, "metadata": {"trace": "abc"}})
+    assert response.status_code == 200
+    assert "metadata" not in response.json()
+    assert "abc" not in response.text
+
+
+def test_each_request_receives_its_own_run_id(client: TestClient) -> None:
+    first = client.post(AGENT_URL, json=PAYLOAD).json()["run_id"]
+    second = client.post(AGENT_URL, json=PAYLOAD).json()["run_id"]
+    assert first != second
+
+
+def test_missing_fields_return_an_error_list(client: TestClient) -> None:
+    response = client.post(AGENT_URL, json={})
+    body = response.json()
+    assert response.status_code == 422
+    assert isinstance(body, list)
+    assert "run_id" not in response.text
+    assert {item["reason_code"] for item in body} == {"MISSING_FIELD"}
+    assert {item["message"].split(":", 1)[0] for item in body} == {
+        "input",
+        "actual_output",
+        "execution_trace",
+        "metrics",
+    }
+
+
+def test_unknown_trace_kind_is_rejected(client: TestClient) -> None:
+    response = client.post(
+        AGENT_URL,
+        json={
+            **PAYLOAD,
+            "execution_trace": [{"kind": "browse", "name": "search"}],
+        },
     )
     assert response.status_code == 422
+    assert isinstance(response.json(), list)
     assert "run_id" not in response.text
 
 
-def test_identical_output_passes(client: TestClient) -> None:
+def test_unknown_metric_is_rejected(client: TestClient) -> None:
     response = client.post(
         AGENT_URL,
-        json={"cases": [_case(expected_output="done")]},
+        json={**PAYLOAD, "metrics": [{"name": "task_reliability", "threshold": 0.5}]},
     )
-    score = response.json()["results"][0]["scores"][0]
-    assert score["passed"] is True
-    assert score["value"] is True
+    assert response.status_code == 422
+    assert response.json()[0]["reason_code"] == "UNSUPPORTED_METRIC"
 
 
-def test_step_error_does_not_change_score(client: TestClient) -> None:
-    response = client.post(
-        AGENT_URL,
-        json={
-            "cases": [
-                _case(
-                    expected_output="done",
-                    steps=[{"kind": "tool", "name": "search", "error": "timeout"}],
-                )
-            ]
-        },
-    )
-    assert response.json()["results"][0]["scores"][0]["passed"] is True
-
-
-def test_omitted_expected_output_has_empty_scores(client: TestClient) -> None:
-    response = client.post(AGENT_URL, json={"cases": [_case()]})
-    assert response.status_code == 200
-    assert response.json()["results"][0]["scores"] == []
-
-
-def test_summary_counts_mixed_cases(client: TestClient) -> None:
+def test_duplicate_metrics_are_rejected(client: TestClient) -> None:
     response = client.post(
         AGENT_URL,
         json={
-            "cases": [
-                _case(expected_output="done"),
-                _case(id="a2"),
-            ]
+            **PAYLOAD,
+            "metrics": [
+                {"name": "task_success_rate", "threshold": 0.2},
+                {"name": "task_success_rate", "threshold": 0.8},
+            ],
         },
     )
-    assert response.json()["summary"] == {
-        "case_count": 2,
-        "scored_count": 1,
-        "passed_count": 1,
+    assert response.status_code == 422
+    assert response.json()[0]["reason_code"] == "DUPLICATE_METRIC"
+
+
+def test_openapi_documents_agent_request_and_run_response(client: TestClient) -> None:
+    schema = client.get("/openapi.json").json()
+    operation = schema["paths"][AGENT_URL]["post"]
+    components = schema["components"]["schemas"]
+    request_ref = operation["requestBody"]["content"]["application/json"]["schema"]["$ref"]
+    response_schema = operation["responses"]["200"]["content"]["application/json"]["schema"]
+    assert request_ref.endswith("/AgentEvaluationRequest")
+    assert response_schema["$ref"].endswith("/AgentEvaluationResponse")
+    assert set(components["AgentEvaluationRequest"]["properties"]) == {
+        "input",
+        "actual_output",
+        "execution_trace",
+        "metrics",
+        "metadata",
+        "framework",
     }
+    assert set(components["AgentEvaluationResponse"]["properties"]) == {
+        "run_id",
+        "framework",
+        "metrics",
+    }
+    assert set(get_args(AgentMetricName)) == set(AGENT_METRIC_TYPES)
